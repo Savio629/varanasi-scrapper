@@ -77,7 +77,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                     const rows = table.querySelectorAll('tr');
                     return Array.from(rows).map((row, index) => {
                         const cells = row.querySelectorAll('td');
-                        console.log("block:",block,"pachayat:",panchayat);
+                        console.log("block:",cells[2]?.textContent.trim(),"pachayat:",cells[3]?.textContent.trim());
                         return {
                             s_no: cells[0]?.textContent.trim() || (index + 1).toString(),
                             district: cells[1]?.textContent.trim() || 'BASTI',
