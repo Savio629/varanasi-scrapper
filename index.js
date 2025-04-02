@@ -27,15 +27,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
         const dropdownSelector = '#ContentPlaceHolder1_ddl_attendance';
         await page.waitForSelector(dropdownSelector);
 
-        // Get all dropdown options and filter out '19/03/2025'
+        // Get all dropdown options, filter out '02/04/2025' and '19/03/2025', and reverse
         const dateOptions = await page.evaluate((selector) => {
             const dropdown = document.querySelector(selector);
             return Array.from(dropdown.options)
                 .map(option => option.value)
-                .filter(value => value !== '19/03/2025');
+                .filter(value => value !== '02/04/2025' && value !== '19/03/2025')
+                .reverse();
         }, dropdownSelector);
 
-        console.log(`Found ${dateOptions.length} dates to scrape: ${dateOptions.join(', ')}`);
+        console.log(`Found ${dateOptions.length} dates to scrape (in reverse): ${dateOptions.join(', ')}`);
 
         for (const dateValue of dateOptions) {
             console.log(`Selecting date: ${dateValue}`);
@@ -76,6 +77,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                     const rows = table.querySelectorAll('tr');
                     return Array.from(rows).map((row, index) => {
                         const cells = row.querySelectorAll('td');
+                        console.log("block:",block,"pachayat:",panchayat);
                         return {
                             s_no: cells[0]?.textContent.trim() || (index + 1).toString(),
                             district: cells[1]?.textContent.trim() || 'BASTI',
