@@ -8,7 +8,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 (async () => {
     const browser = await puppeteer.launch({
-        headless: true, 
+        headless: true,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -17,6 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
             '--disable-software-rasterizer'
         ]
     });
+
     const page = await browser.newPage();
 
     try {
@@ -27,41 +28,48 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
         const dropdownSelector = '#ContentPlaceHolder1_ddl_attendance';
         await page.waitForSelector(dropdownSelector);
 
-        // Get all dropdown options, filter out '02/04/2025' and '19/03/2025', and reverse
-        const dateOptions = await page.evaluate((selector) => {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dd = String(yesterday.getDate()).padStart(2, '0');
+        const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
+        const yyyy = yesterday.getFullYear();
+        const formattedDate = `${dd}/${mm}/${yyyy}`;
+
+        const selectedDate = await page.evaluate((selector, targetDate) => {
             const dropdown = document.querySelector(selector);
-            return Array.from(dropdown.options)
-                .map(option => option.value)
-                .filter(value => value !== '02/04/2025' && value !== '19/03/2025')
-                .reverse();
-        }, dropdownSelector);
+            const options = Array.from(dropdown.options).map(option => option.value);
+            return options.includes(targetDate) ? targetDate : null;
+        }, dropdownSelector, formattedDate);
 
-        console.log(`Found ${dateOptions.length} dates to scrape (in reverse): ${dateOptions.join(', ')}`);
+        if (!selectedDate) {
+            console.log(`Date ${formattedDate} not found in dropdown. Exiting...`);
+            await browser.close();
+            return;
+        }
 
-        for (const dateValue of dateOptions) {
-            console.log(`Selecting date: ${dateValue}`);
-            await page.select(dropdownSelector, dateValue);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log(`Processing only for previous date: ${selectedDate}`);
 
-            await page.waitForSelector('#RepPr1 table tbody');
+        const dateValue = selectedDate;
+        await page.select(dropdownSelector, dateValue);
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const rows = await page.evaluate(() => {
-                const table = document.querySelector('#RepPr1 table tbody');
-                if (!table) return [];
-                return Array.from(table.querySelectorAll('tr'))
-                    .map(row => {
-                        const blockCell = row.cells[3];
-                        const link = blockCell ? blockCell.querySelector('a') : null;
-                        return link ? { blockName: link.textContent.trim(), href: link.href } : null;
-                    })
-                    .filter(row => row !== null);
-            });
+        await page.waitForSelector('#RepPr1 table tbody');
 
-            if (rows.length === 0) {
-                console.log(`No links found for date: ${dateValue}`);
-                continue;
-            }
+        const rows = await page.evaluate(() => {
+            const table = document.querySelector('#RepPr1 table tbody');
+            if (!table) return [];
+            return Array.from(table.querySelectorAll('tr'))
+                .map(row => {
+                    const blockCell = row.cells[3];
+                    const link = blockCell ? blockCell.querySelector('a') : null;
+                    return link ? { blockName: link.textContent.trim(), href: link.href } : null;
+                })
+                .filter(row => row !== null);
+        });
 
+        if (rows.length === 0) {
+            console.log(`No links found for date: ${dateValue}`);
+        } else {
             console.log(`Found ${rows.length} links for date: ${dateValue}`);
 
             for (const { blockName, href } of rows) {
@@ -77,7 +85,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                     const rows = table.querySelectorAll('tr');
                     return Array.from(rows).map((row, index) => {
                         const cells = row.querySelectorAll('td');
-                        console.log("block:",cells[2]?.textContent.trim(),"pachayat:",cells[3]?.textContent.trim());
                         return {
                             s_no: cells[0]?.textContent.trim() || (index + 1).toString(),
                             district: cells[1]?.textContent.trim() || 'BASTI',
@@ -86,7 +93,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                             work_code: cells[4]?.textContent.trim() || '',
                             mustroll_no: cells[5]?.querySelector('a')?.textContent.trim() || cells[5]?.textContent.trim() || '',
                             persondays_generated: cells[6]?.textContent.trim() || '',
-                            attendance_date: date  
+                            attendance_date: date
                         };
                     });
                 }, dateValue);
@@ -94,7 +101,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                 if (tableData.length > 0) {
                     console.log(`Extracted ${tableData.length} rows from ${blockName} for date ${dateValue}`);
 
-                    // Insert all data at once (no duplicate check)
                     const { error: insertError } = await supabase
                         .from('attendance_data')
                         .insert(tableData);
