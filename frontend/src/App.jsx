@@ -73,8 +73,9 @@ function App() {
   
   return (
     <div className="container my-5">
-      <h1 className="mb-4">रोज़गार दर्शक</h1>
-      <p className="mb-4">
+    <h1 className="mb-4 display-4 fw-bold text-primary text-center">रोज़गार दर्शक</h1>
+
+      <p className="mb-4 fs-5">
         यह एक डैशबोर्ड है जो रोज़ाना MGNREGA के कामों पर सबसे ज़्यादा मज़दूरों की मौजूदगी को दिखाता है।
         यह NMMS ऐप से डेटा लेकर उन कामों की पहचान करता है जहाँ एक दिन में सबसे अधिक मानव-दिवस (persondays) 
         सृजित किए गए हैं। इससे अधिकारी योजना के सही क्रियान्वयन को सुनिश्चित कर सकते हैं।
