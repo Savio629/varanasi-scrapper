@@ -73,7 +73,12 @@ function App() {
   
   return (
     <div className="container my-5">
-      <h1 className="mb-4">Work with highest person days generated</h1>
+      <h1 className="mb-4">रोज़गार दर्शक</h1>
+      <p className="mb-4">
+        यह एक डैशबोर्ड है जो रोज़ाना MGNREGA के कामों पर सबसे ज़्यादा मज़दूरों की मौजूदगी को दिखाता है।
+        यह NMMS ऐप से डेटा लेकर उन कामों की पहचान करता है जहाँ एक दिन में सबसे अधिक मानव-दिवस (persondays) 
+        सृजित किए गए हैं। इससे अधिकारी योजना के सही क्रियान्वयन को सुनिश्चित कर सकते हैं।
+      </p>
 
       <div className="mb-3 d-flex flex-wrap gap-3 align-items-center">
         {/* Block Filter */}
