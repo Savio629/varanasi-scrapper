@@ -3,6 +3,7 @@ name: Call Render Endpoint Daily
 on:
   schedule:
     - cron: '0 4 * * *' # 9:30 AM IST
+    - cron: '0 6 * * *' # 11:30 AM IST
   workflow_dispatch:
 
 jobs:
