@@ -19,14 +19,37 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     });
 
     const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36');
+
+    // Log responses and page errors for debugging
+    page.on('response', response => {
+        console.log(`Response: ${response.url()} - Status: ${response.status()}`);
+    });
+    page.on('pageerror', error => {
+        console.error('Page error:', error);
+    });
+
+    // Retry navigation function
+    async function gotoWithRetry(page, url, retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+                return true;
+            } catch (error) {
+                console.warn(`Navigation attempt ${i + 1} failed:`, error.message);
+                if (i === retries - 1) throw error;
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+    }
 
     try {
         const url = "https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=31/03/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A";
         console.log(`Opening URL: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        await gotoWithRetry(page, url);
 
         const dropdownSelector = '#ContentPlaceHolder1_ddl_attendance';
-        await page.waitForSelector(dropdownSelector);
+        await page.waitForSelector(dropdownSelector, { timeout: 30000 });
 
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -34,6 +57,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
         const mm = String(yesterday.getMonth() + 1).padStart(2, '0');
         const yyyy = yesterday.getFullYear();
         const formattedDate = `${dd}/${mm}/${yyyy}`;
+
+        console.log(`Fetching records for date: ${formattedDate}`);
 
         const selectedDate = await page.evaluate((selector, targetDate) => {
             const dropdown = document.querySelector(selector);
@@ -51,9 +76,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const dateValue = selectedDate;
         await page.select(dropdownSelector, dateValue);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Random delay 1-3s
 
-        await page.waitForSelector('#RepPr1 table tbody');
+        await page.waitForSelector('#RepPr1 table tbody', { timeout: 30000 });
 
         const rows = await page.evaluate(() => {
             const table = document.querySelector('#RepPr1 table tbody');
@@ -75,9 +100,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
             for (const { blockName, href } of rows) {
                 console.log(`Processing link for block: ${blockName} - ${href}`);
                 const newPage = await browser.newPage();
-                await newPage.goto(href, { waitUntil: 'networkidle2' });
+                await gotoWithRetry(newPage, href);
 
-                await newPage.waitForSelector('#RepPr1 table tbody');
+                await newPage.waitForSelector('#RepPr1 table tbody', { timeout: 30000 });
 
                 const tableData = await newPage.evaluate((date) => {
                     const table = document.querySelector('#RepPr1 table tbody');
@@ -114,6 +139,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                     console.log(`No table data found for ${blockName} on ${dateValue}`);
                 }
                 await newPage.close();
+                await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Random delay 1-3s
             }
         }
 
