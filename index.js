@@ -13,17 +13,26 @@ const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0'
 ];
 
+let options = {
+                headless: false,
+                timeout: 0,
+                userDataDir: './puppeteer_profile',
+                ignoreHTTPSErrors: true,
+                executablePath: executablePath(),
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-infobars',
+                    '--disable-popup-blocking',
+                    '--disable-dev-shm-usage',
+                    '--disable-notifications',
+                    '--remote-debugging-port=9222',
+                    '--disable-web-security',
+                ],
+                ignoreDefaultArgs: ["--enable-automation"],
+            };
 (async () => {
-    const browser = await puppeteer.launch({
-        headless: "new",
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--disable-dev-shm-usage',
-            '--disable-software-rasterizer'
-        ]
-    });
+  const browser = await puppeteer.launch(options);
 
     const page = await browser.newPage();
     // Randomize user agent
