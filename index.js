@@ -16,7 +16,7 @@ const userAgents = [
 ];
 
 let options = {
-                headless: false,
+                headless: "new",
                 timeout: 0,
                 userDataDir: './puppeteer_profile',
                 ignoreHTTPSErrors: true,
