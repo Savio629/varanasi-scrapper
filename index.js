@@ -6,6 +6,13 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// List of user agents to rotate
+const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0'
+];
+
 (async () => {
     const browser = await puppeteer.launch({
         headless: "new",
@@ -19,34 +26,63 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     });
 
     const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36');
+    // Randomize user agent
+    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+    await page.setUserAgent(randomUserAgent);
+    // Set viewport to mimic a real browser
+    await page.setViewport({ width: 1366, height: 768 });
+    // Add headers to accept cookies
+    await page.setExtraHTTPHeaders({
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive'
+    });
 
-    // Log responses and page errors for debugging
+    // Log all network activity for debugging
+    page.on('request', request => {
+        console.log(`Request: ${request.url()} - Method: ${request.method()}`);
+    });
     page.on('response', response => {
         console.log(`Response: ${response.url()} - Status: ${response.status()}`);
+    });
+    page.on('requestfailed', request => {
+        console.log(`Request failed: ${request.url()} - Error: ${request.failure()?.errorText}`);
     });
     page.on('pageerror', error => {
         console.error('Page error:', error);
     });
 
     // Retry navigation function
-    async function gotoWithRetry(page, url, retries = 3) {
+    async function gotoWithRetry(page, url, retries = 5) {
         for (let i = 0; i < retries; i++) {
             try {
                 await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
                 return true;
             } catch (error) {
-                console.warn(`Navigation attempt ${i + 1} failed:`, error.message);
+                console.warn(`Navigation attempt ${i + 1} failed: ${error.message}`);
                 if (i === retries - 1) throw error;
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Random delay between 2-5 seconds
+                await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
             }
         }
     }
 
     try {
-        const url = "https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=31/03/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A";
+        let url = "https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=31/03/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A";
         console.log(`Opening URL: ${url}`);
-        await gotoWithRetry(page, url);
+        try {
+            await gotoWithRetry(page, url);
+        } catch (error) {
+            console.warn('Main URL failed, trying fallback URL...');
+            // Fallback to a simpler URL (same page, current date)
+            const today = new Date();
+            const dd = String(today.getDate()).padStart(2, '0');
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const yyyy = today.getFullYear();
+            url = `https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=${dd}/${mm}/${yyyy}&source=&Digest=ebKjCj4U7oFg7NTclfvy5A`;
+            console.log(`Opening fallback URL: ${url}`);
+            await gotoWithRetry(page, url);
+        }
 
         const dropdownSelector = '#ContentPlaceHolder1_ddl_attendance';
         await page.waitForSelector(dropdownSelector, { timeout: 30000 });
@@ -76,7 +112,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const dateValue = selectedDate;
         await page.select(dropdownSelector, dateValue);
-        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Random delay 1-3s
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
         await page.waitForSelector('#RepPr1 table tbody', { timeout: 30000 });
 
@@ -100,6 +136,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
             for (const { blockName, href } of rows) {
                 console.log(`Processing link for block: ${blockName} - ${href}`);
                 const newPage = await browser.newPage();
+                await newPage.setUserAgent(randomUserAgent);
                 await gotoWithRetry(newPage, href);
 
                 await newPage.waitForSelector('#RepPr1 table tbody', { timeout: 30000 });
@@ -139,7 +176,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
                     console.log(`No table data found for ${blockName} on ${dateValue}`);
                 }
                 await newPage.close();
-                await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Random delay 1-3s
+                await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
             }
         }
 
