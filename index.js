@@ -1,12 +1,26 @@
 require('dotenv').config();
 const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
-const { executablePath } = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Profile and screenshot directories
+const profileDir = path.join(__dirname, 'puppeteer_profile');
+const screenshotDir = path.join(__dirname, 'screenshots');
+
+// Ensure directories exist
+if (!fs.existsSync(profileDir)) {
+    fs.mkdirSync(profileDir, { recursive: true });
+    console.log(`Created profile directory: ${profileDir}`);
+}
+if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir, { recursive: true });
+    console.log(`Created screenshot directory: ${screenshotDir}`);
+}
 
 // List of user agents to rotate
 const userAgents = [
@@ -15,26 +29,23 @@ const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0'
 ];
 
-let options = {
-                headless: "new",
-                timeout: 0,
-                userDataDir: './puppeteer_profile',
-                ignoreHTTPSErrors: true,
-                executablePath: executablePath(),
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-infobars',
-                    '--disable-popup-blocking',
-                    '--disable-dev-shm-usage',
-                    '--disable-notifications',
-                    '--remote-debugging-port=9222',
-                    '--disable-web-security',
-                ],
-                ignoreDefaultArgs: ["--enable-automation"],
-            };
 (async () => {
-  const browser = await puppeteer.launch(options);
+    const browser = await puppeteer.launch({
+        headless: "new",
+        ignoreHTTPSErrors: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-infobars',
+            '--disable-popup-blocking',
+            '--disable-dev-shm-usage',
+            '--disable-notifications',
+            '--remote-debugging-port=9222',
+            '--disable-web-security',
+            `--user-data-dir=${profileDir}`
+        ],
+        ignoreDefaultArgs: ["--enable-automation"]
+    });
 
     const page = await browser.newPage();
     // Randomize user agent
@@ -63,14 +74,42 @@ let options = {
         console.error('Page error:', error);
     });
 
-    // Retry navigation function
+    // Simulate random mouse movement
+    async function simulateMouseMovement(page) {
+        try {
+            const viewport = await page.viewport();
+            const maxX = viewport.width;
+            const maxY = viewport.height;
+            for (let i = 0; i < 3; i++) {
+                const x = Math.floor(Math.random() * maxX);
+                const y = Math.floor(Math.random() * maxY);
+                await page.mouse.move(x, y, { steps: 10 });
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+            }
+            console.log('Simulated mouse movement');
+        } catch (error) {
+            console.warn('Mouse movement failed:', error.message);
+        }
+    }
+
+    // Retry navigation function with screenshot on failure
     async function gotoWithRetry(page, url, retries = 5) {
         for (let i = 0; i < retries; i++) {
             try {
                 await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+                await simulateMouseMovement(page); // Simulate mouse movement after successful navigation
                 return true;
             } catch (error) {
                 console.warn(`Navigation attempt ${i + 1} failed: ${error.message}`);
+                // Take screenshot on failure
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const screenshotPath = path.join(screenshotDir, `error-screenshot-${timestamp}.png`);
+                try {
+                    await page.screenshot({ path: screenshotPath, fullPage: true });
+                    console.log(`Saved screenshot: ${screenshotPath}`);
+                } catch (screenshotError) {
+                    console.warn('Failed to take screenshot:', screenshotError.message);
+                }
                 if (i === retries - 1) throw error;
                 // Random delay between 2-5 seconds
                 await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000));
@@ -79,13 +118,13 @@ let options = {
     }
 
     try {
-        let url = "https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=31/03/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A";
+        let url = "https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=15/05/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A";
         console.log(`Opening URL: ${url}`);
         try {
             await gotoWithRetry(page, url);
         } catch (error) {
             console.warn('Main URL failed, trying fallback URL...');
-            // Fallback to a simpler URL (same page, current date)
+            // Fallback to current date
             const today = new Date();
             const dd = String(today.getDate()).padStart(2, '0');
             const mm = String(today.getMonth() + 1).padStart(2, '0');
