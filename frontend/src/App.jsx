@@ -14,7 +14,8 @@ function App() {
     const fetchData = async () => {
       const { data: rows, error } = await supabase
         .from('highest_personday_works')
-        .select('*')
+        .select('*', { count: 'exact' })
+        .range(0, 9999)
 
       if (error) {
         console.error('Supabase Error:', error)
