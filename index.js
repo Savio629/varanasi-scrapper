@@ -105,8 +105,9 @@ const userAgents = [
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 const screenshotPath = path.join(screenshotDir, `error-screenshot-${timestamp}.png`);
                 try {
-                    await page.screenshot({ path: screenshotPath, fullPage: true });
+                    const base64Screenshot = await page.screenshot({ path: screenshotPath, fullPage: true, encoding: 'base64' });
                     console.log(`Saved screenshot: ${screenshotPath}`);
+                    console.log(`Base64 Screenshot: data:image/png;base64,${base64Screenshot}`);
                 } catch (screenshotError) {
                     console.warn('Failed to take screenshot:', screenshotError.message);
                 }
