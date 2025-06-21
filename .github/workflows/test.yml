@@ -1,0 +1,14 @@
+name: Testing
+
+on:
+  # schedule:
+  #   - cron: '0 4 * * *' # 9:30 AM IST
+  #   - cron: '0 6 * * *' # 11:30 AM IST
+  workflow_dispatch:
+
+jobs:
+  call-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl the Render endpoint
+        run: curl https://mnregaweb4.nic.in/nregaarch/View_NMMS_atten_date_new.aspx?page=D&short_name=UP&state_name=UTTAR%20PRADESH&state_code=31&district_name=BASTI&district_code=3153&fin_year=2024-2025&AttendanceDate=31/03/2025&source=&Digest=ebKjCj4U7oFg7NTclfvy5A
